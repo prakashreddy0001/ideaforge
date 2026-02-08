@@ -1,6 +1,11 @@
+import json
+import logging
 from typing import List, Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -27,5 +32,24 @@ class Settings(BaseSettings):
     # App
     frontend_url: str = "http://localhost:3000"
 
+    @field_validator("cors_allow_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Accept JSON array string, comma-separated string, or list."""
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            # Try JSON first: '["https://example.com"]'
+            if v.startswith("["):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            # Fallback: comma-separated: 'https://a.com,https://b.com'
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
 
 settings = Settings()
+logger.info("CORS allowed origins: %s", settings.cors_allow_origins)

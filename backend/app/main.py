@@ -14,6 +14,12 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Build CORS origins: merge config list + frontend_url for safety
+_origins = list(settings.cors_allow_origins)
+if settings.frontend_url and settings.frontend_url not in _origins:
+    _origins.append(settings.frontend_url)
+logger.info("CORS allow_origins: %s", _origins)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,9 +32,9 @@ app = FastAPI(title="IdeaForge API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allow_origins,
+    allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 

@@ -14,6 +14,48 @@ const fadeUp = {
   }),
 };
 
+const TOOLS = [
+  {
+    title: "Generate",
+    desc: "Transform any product idea into a complete build package — optimized tech stack, code-gen prompts, full documentation, and a phased implementation plan.",
+    href: "/generate",
+    glow: "purple",
+    linkText: "Start Generating",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+      </svg>
+    ),
+  },
+  {
+    title: "Refine",
+    desc: "Turn vague prompts into precise, actionable instructions. Get deep analysis, improvement tips, and a polished version ready to paste into any AI tool.",
+    href: "/refine",
+    glow: "cyan",
+    linkText: "Try Refiner",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Dashboard",
+    desc: "Track your generation usage, manage your subscription, view plan details, and quickly jump back into building from a single command center.",
+    href: "/dashboard",
+    glow: "blue",
+    linkText: "View Dashboard",
+    icon: (
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" />
+        <rect x="14" y="3" width="7" height="7" />
+        <rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="14" width="7" height="7" />
+      </svg>
+    ),
+  },
+];
+
 const FEATURES = [
   {
     title: "Smart Stack Selection",
@@ -73,25 +115,25 @@ export default function LandingPage() {
       <AnimatedBackground />
       <main className="landing">
         {/* ── Hero ── */}
-        <section className="landing-hero">
+        <section className="landing-hero landing-hero--centered">
           <motion.div
-            className="landing-hero-content"
+            className="landing-hero-content landing-hero-content--centered"
             initial="hidden"
             animate="visible"
           >
             <motion.span className="kicker" custom={0} variants={fadeUp}>
               AI-Powered Build Packages
             </motion.span>
-            <motion.h1 className="landing-hero-title" custom={1} variants={fadeUp}>
+            <motion.h1 className="landing-hero-title landing-hero-title--centered" custom={1} variants={fadeUp}>
               Turn a rough idea into a
               <span className="landing-gradient-text"> build-ready package</span>
             </motion.h1>
-            <motion.p className="landing-hero-desc" custom={2} variants={fadeUp}>
+            <motion.p className="landing-hero-desc landing-hero-desc--centered" custom={2} variants={fadeUp}>
               Drop in a product idea and get an implementation roadmap, optimized
               tech stack, heavy code-generation prompts, and tailored docs — all
               in one pass.
             </motion.p>
-            <motion.div className="landing-hero-actions" custom={3} variants={fadeUp}>
+            <motion.div className="landing-hero-actions landing-hero-actions--centered" custom={3} variants={fadeUp}>
               <Link href={user ? "/generate" : "/register"} className="neon-btn landing-cta-primary">
                 Start Building
               </Link>
@@ -105,10 +147,10 @@ export default function LandingPage() {
           </motion.div>
 
           <motion.div
-            className="landing-hero-visual"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="landing-hero-visual landing-hero-visual--centered"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="landing-preview glass-card">
               <div className="landing-preview-header">
@@ -141,6 +183,42 @@ export default function LandingPage() {
               </div>
             </div>
           </motion.div>
+        </section>
+
+        {/* ── Tools Showcase ── */}
+        <section className="landing-section">
+          <div className="landing-section-header">
+            <h2 className="landing-section-title">Powerful Tools</h2>
+            <p className="landing-section-desc">
+              Everything you need to go from idea to production — all in one platform.
+            </p>
+          </div>
+
+          <div className="landing-tools-grid">
+            {TOOLS.map((tool, i) => (
+              <motion.div
+                key={tool.title}
+                className={`glass-card landing-tool-card glass-card--glow-${tool.glow}`}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+              >
+                <div className={`landing-tool-icon landing-tool-icon--${tool.glow}`}>
+                  {tool.icon}
+                </div>
+                <h3 className="landing-tool-title">{tool.title}</h3>
+                <p className="landing-tool-desc">{tool.desc}</p>
+                <Link href={tool.href} className={`landing-tool-link landing-tool-link--${tool.glow}`}>
+                  {tool.linkText}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
         </section>
 
         {/* ── Features ── */}

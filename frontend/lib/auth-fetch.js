@@ -1,20 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
 
-let _supabase = null;
-
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient();
-  }
-  return _supabase;
-}
+// No module-level singleton — createBrowserClient already returns a
+// singleton so calling createClient() always gives the same instance
+// that AuthProvider uses.  A separate `_supabase` variable could drift
+// after HMR or if the module re-executes.
 
 /**
  * Get a fresh access token, proactively refreshing if expired or about to expire.
  * Returns null if no session exists.
  */
 async function getAccessToken() {
-  const supabase = getSupabase();
+  const supabase = createClient();
 
   const {
     data: { session },
@@ -23,13 +19,16 @@ async function getAccessToken() {
 
   if (error || !session) return null;
 
-  // If token expires within 60 seconds, force a refresh
+  // If the token is already expired OR will expire within 60 s → refresh
   const now = Math.floor(Date.now() / 1000);
   if (session.expires_at && session.expires_at - now < 60) {
     const {
       data: { session: refreshed },
+      error: refreshError,
     } = await supabase.auth.refreshSession();
-    return refreshed?.access_token ?? null;
+
+    if (refreshError || !refreshed) return null;
+    return refreshed.access_token;
   }
 
   return session.access_token;
@@ -49,9 +48,9 @@ export async function authFetch(url, options = {}) {
 
   let res = await fetch(url, { ...options, headers });
 
-  // If 401, try refreshing the token once and retry
+  // If 401, force a full token refresh and retry once
   if (res.status === 401) {
-    const supabase = getSupabase();
+    const supabase = createClient();
     const {
       data: { session: refreshed },
     } = await supabase.auth.refreshSession();

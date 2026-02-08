@@ -18,7 +18,9 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           <Navbar />
-          {children}
+          <div className="app-content">
+            {children}
+          </div>
         </AuthProvider>
       </body>
     </html>

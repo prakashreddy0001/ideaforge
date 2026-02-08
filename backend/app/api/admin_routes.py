@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -22,23 +23,19 @@ async def list_users(
     tier: Optional[str] = None,
     admin: CurrentUser = Depends(require_admin),
 ):
-    sb = get_supabase()
-    query = sb.table("profiles").select("*", count="exact")
+    def _query():
+        sb = get_supabase()
+        q = sb.table("profiles").select("*", count="exact")
+        if search:
+            q = q.or_(f"email.ilike.%{search}%,full_name.ilike.%{search}%")
+        if role:
+            q = q.eq("role", role)
+        if tier:
+            q = q.eq("tier", tier)
+        offset = (page - 1) * per_page
+        return q.order("created_at", desc=True).range(offset, offset + per_page - 1).execute()
 
-    if search:
-        query = query.or_(f"email.ilike.%{search}%,full_name.ilike.%{search}%")
-    if role:
-        query = query.eq("role", role)
-    if tier:
-        query = query.eq("tier", tier)
-
-    offset = (page - 1) * per_page
-    result = (
-        query.order("created_at", desc=True)
-        .range(offset, offset + per_page - 1)
-        .execute()
-    )
-
+    result = await asyncio.to_thread(_query)
     return {
         "users": result.data,
         "total": result.count,
@@ -49,26 +46,39 @@ async def list_users(
 
 @router.get("/users/{user_id}")
 async def get_user(user_id: str, admin: CurrentUser = Depends(require_admin)):
-    sb = get_supabase()
-    profile = sb.table("profiles").select("*").eq("id", user_id).single().execute()
+    def _fetch_profile():
+        sb = get_supabase()
+        return sb.table("profiles").select("*").eq("id", user_id).single().execute()
+
+    profile = await asyncio.to_thread(_fetch_profile)
     if not profile.data:
         raise HTTPException(status_code=404, detail="User not found")
 
-    usage = (
-        sb.table("usage_logs")
-        .select("*", count="exact")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(10)
-        .execute()
-    )
-    subscription = (
-        sb.table("subscriptions")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
+    def _fetch_usage():
+        sb = get_supabase()
+        return (
+            sb.table("usage_logs")
+            .select("*", count="exact")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        )
+
+    def _fetch_subscription():
+        sb = get_supabase()
+        return (
+            sb.table("subscriptions")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+    usage, subscription = await asyncio.gather(
+        asyncio.to_thread(_fetch_usage),
+        asyncio.to_thread(_fetch_subscription),
     )
 
     return {
@@ -92,7 +102,6 @@ async def update_user(
     body: UserUpdate,
     admin: CurrentUser = Depends(require_admin),
 ):
-    sb = get_supabase()
     updates = body.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -102,7 +111,13 @@ async def update_user(
     if "tier" in updates and updates["tier"] not in ("free", "pro", "enterprise"):
         raise HTTPException(status_code=400, detail="Invalid tier")
 
-    result = sb.table("profiles").update(updates).eq("id", user_id).execute()
+    def _update():
+        sb = get_supabase()
+        return sb.table("profiles").update(updates).eq("id", user_id).execute()
+
+    result = await asyncio.to_thread(_update)
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found")
     return {"updated": result.data}
 
 
@@ -111,35 +126,27 @@ async def update_user(
 
 @router.get("/analytics/overview")
 async def analytics_overview(admin: CurrentUser = Depends(require_admin)):
-    sb = get_supabase()
+    def _count(table: str, **filters):
+        sb = get_supabase()
+        q = sb.table(table).select("id", count="exact")
+        for k, v in filters.items():
+            q = q.eq(k, v)
+        return q.execute().count
 
-    total_users = sb.table("profiles").select("id", count="exact").execute()
-    active_users = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("is_active", True)
-        .execute()
+    total, active, pro, enterprise, generations = await asyncio.gather(
+        asyncio.to_thread(_count, "profiles"),
+        asyncio.to_thread(_count, "profiles", is_active=True),
+        asyncio.to_thread(_count, "profiles", tier="pro"),
+        asyncio.to_thread(_count, "profiles", tier="enterprise"),
+        asyncio.to_thread(_count, "usage_logs"),
     )
-    pro_users = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("tier", "pro")
-        .execute()
-    )
-    enterprise_users = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("tier", "enterprise")
-        .execute()
-    )
-    total_generations = sb.table("usage_logs").select("id", count="exact").execute()
 
     return {
-        "total_users": total_users.count,
-        "active_users": active_users.count,
-        "pro_users": pro_users.count,
-        "enterprise_users": enterprise_users.count,
-        "total_generations": total_generations.count,
+        "total_users": total,
+        "active_users": active,
+        "pro_users": pro,
+        "enterprise_users": enterprise,
+        "total_generations": generations,
     }
 
 
@@ -149,46 +156,44 @@ async def analytics_usage(
     admin: CurrentUser = Depends(require_admin),
 ):
     """Return generation data for the last N days."""
-    sb = get_supabase()
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    def _query():
+        sb = get_supabase()
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        return (
+            sb.table("usage_logs")
+            .select("created_at, mode, tool")
+            .gte("created_at", since)
+            .order("created_at", desc=False)
+            .execute()
+        )
 
-    result = (
-        sb.table("usage_logs")
-        .select("created_at, mode, tool")
-        .gte("created_at", since)
-        .order("created_at", desc=False)
-        .execute()
-    )
+    result = await asyncio.to_thread(_query)
     return {"usage": result.data, "days": days}
 
 
 @router.get("/analytics/tiers")
 async def analytics_tiers(admin: CurrentUser = Depends(require_admin)):
     """Breakdown of users by tier."""
-    sb = get_supabase()
-    free = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("tier", "free")
-        .execute()
-    )
-    pro = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("tier", "pro")
-        .execute()
-    )
-    enterprise = (
-        sb.table("profiles")
-        .select("id", count="exact")
-        .eq("tier", "enterprise")
-        .execute()
+    def _count_tier(tier_name: str):
+        sb = get_supabase()
+        return (
+            sb.table("profiles")
+            .select("id", count="exact")
+            .eq("tier", tier_name)
+            .execute()
+            .count
+        )
+
+    free, pro, enterprise = await asyncio.gather(
+        asyncio.to_thread(_count_tier, "free"),
+        asyncio.to_thread(_count_tier, "pro"),
+        asyncio.to_thread(_count_tier, "enterprise"),
     )
 
     return {
         "tiers": [
-            {"tier": "free", "count": free.count},
-            {"tier": "pro", "count": pro.count},
-            {"tier": "enterprise", "count": enterprise.count},
+            {"tier": "free", "count": free},
+            {"tier": "pro", "count": pro},
+            {"tier": "enterprise", "count": enterprise},
         ]
     }

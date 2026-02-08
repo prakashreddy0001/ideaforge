@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 const AuthContext = createContext({
@@ -18,32 +19,29 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
 
-  const fetchProfile = useCallback(
-    async (session) => {
-      if (!session) {
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await authFetch(`${API_URL}/api/auth/me`);
+      if (res.ok) {
+        setProfile(await res.json());
+      } else {
         setProfile(null);
-        return;
       }
-      try {
-        const res = await fetch(`${API_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) {
-          setProfile(await res.json());
-        }
-      } catch (err) {
-        console.error("Failed to fetch profile:", err);
-      }
-    },
-    []
-  );
+    } catch (err) {
+      console.error("Failed to fetch profile:", err);
+    }
+  }, []);
 
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
-      await fetchProfile(session);
+      if (session) {
+        await fetchProfile();
+      } else {
+        setProfile(null);
+      }
       setLoading(false);
     });
 
@@ -57,10 +55,7 @@ export function AuthProvider({ children }) {
   };
 
   const refreshProfile = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    await fetchProfile(session);
+    await fetchProfile();
   };
 
   return (

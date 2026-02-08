@@ -20,6 +20,9 @@ export default function Navbar() {
           <Link href="/generate" className="navbar-link">
             Generate
           </Link>
+          <Link href="/refine" className="navbar-link">
+            Refine
+          </Link>
           <Link href="/pricing" className="navbar-link">
             Pricing
           </Link>

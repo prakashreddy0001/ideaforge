@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 export default function AdminOverview() {
@@ -11,14 +11,7 @@ export default function AdminOverview() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const res = await fetch(`${API_URL}/api/admin/analytics/overview`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+        const res = await authFetch(`${API_URL}/api/admin/analytics/overview`);
         if (res.ok) {
           setStats(await res.json());
         }

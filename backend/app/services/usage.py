@@ -1,6 +1,15 @@
+import logging
+import time
 from datetime import datetime, timezone
+from typing import Optional
 
 from app.core.supabase_client import get_supabase
+
+logger = logging.getLogger(__name__)
+
+# Tier limits rarely change — cache for 1 hour instead of 5 min
+_tier_cache: dict = {}
+_TIER_CACHE_TTL = 3600
 
 
 def get_monthly_usage(user_id: str) -> int:
@@ -21,7 +30,14 @@ def get_monthly_usage(user_id: str) -> int:
 
 
 def get_tier_limit(tier: str) -> int:
-    """Fetch the monthly generation limit for a tier."""
+    """Fetch the monthly generation limit for a tier (cached for 1 hour)."""
+    now = time.monotonic()
+    cached = _tier_cache.get(tier)
+    if cached:
+        value, ts = cached
+        if now - ts < _TIER_CACHE_TTL:
+            return value
+
     sb = get_supabase()
     result = (
         sb.table("tier_limits")
@@ -30,9 +46,9 @@ def get_tier_limit(tier: str) -> int:
         .single()
         .execute()
     )
-    if result.data:
-        return result.data["monthly_generations"]
-    return 5
+    value = result.data["monthly_generations"] if result.data else 5
+    _tier_cache[tier] = (value, now)
+    return value
 
 
 def check_usage_allowed(user_id: str, tier: str) -> bool:
@@ -44,13 +60,16 @@ def check_usage_allowed(user_id: str, tier: str) -> bool:
     return used < limit
 
 
-def log_usage(user_id: str, idea_summary: str, mode: str, tool: str | None):
+def log_usage(user_id: str, idea_summary: str, mode: str, tool: Optional[str]):
     """Record a generation in usage_logs."""
-    sb = get_supabase()
-    sb.table("usage_logs").insert({
-        "user_id": user_id,
-        "action": "generation",
-        "idea_summary": idea_summary[:200],
-        "mode": mode,
-        "tool": tool,
-    }).execute()
+    try:
+        sb = get_supabase()
+        sb.table("usage_logs").insert({
+            "user_id": user_id,
+            "action": "generation",
+            "idea_summary": idea_summary[:200],
+            "mode": mode,
+            "tool": tool,
+        }).execute()
+    except Exception:
+        logger.exception("Failed to log usage for user %s", user_id)

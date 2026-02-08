@@ -1,15 +1,21 @@
+import asyncio
+import logging
+import time
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt, JWTError
 from pydantic import BaseModel
 
-from app.core.config import settings
 from app.core.supabase_client import get_supabase
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer()
 optional_security = HTTPBearer(auto_error=False)
+
+_profile_cache: dict = {}
+_PROFILE_CACHE_TTL = 300  # seconds
 
 
 class CurrentUser(BaseModel):
@@ -20,59 +26,77 @@ class CurrentUser(BaseModel):
     is_active: bool
 
 
+def _verify_token(token: str):
+    """Verify token via Supabase Auth — no manual JWT decoding needed."""
+    sb = get_supabase()
+    return sb.auth.get_user(token)
+
+
+def _fetch_profile(user_id: str) -> Optional[dict]:
+    sb = get_supabase()
+    result = sb.table("profiles").select("*").eq("id", user_id).single().execute()
+    return result.data
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> CurrentUser:
-    """Decode and verify the Supabase JWT, then fetch profile."""
     token = credentials.credentials
+
+    # Let Supabase verify the token (handles any algorithm)
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-    except JWTError:
+        auth_response = await asyncio.to_thread(_verify_token, token)
+        supabase_user = auth_response.user
+    except Exception as e:
+        logger.error(f"Supabase auth failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
 
-    user_id = payload.get("sub")
-    if not user_id:
+    if not supabase_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token missing subject",
+            detail="Invalid or expired token",
         )
 
-    sb = get_supabase()
-    result = sb.table("profiles").select("*").eq("id", user_id).single().execute()
-    if not result.data:
+    user_id = supabase_user.id
+
+    # Check profile cache
+    now = time.monotonic()
+    cached = _profile_cache.get(user_id)
+    if cached:
+        user, ts = cached
+        if now - ts < _PROFILE_CACHE_TTL:
+            return user
+
+    profile = await asyncio.to_thread(_fetch_profile, user_id)
+    if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profile not found",
         )
 
-    profile = result.data
     if not profile.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",
         )
 
-    return CurrentUser(
+    user = CurrentUser(
         id=profile["id"],
         email=profile["email"],
         role=profile["role"],
         tier=profile["tier"],
         is_active=profile["is_active"],
     )
+    _profile_cache[user_id] = (user, now)
+    return user
 
 
 async def require_admin(
     user: CurrentUser = Depends(get_current_user),
 ) -> CurrentUser:
-    """Dependency that ensures the current user is an admin."""
     if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -84,7 +108,6 @@ async def require_admin(
 async def get_optional_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
 ) -> Optional[CurrentUser]:
-    """Returns the user if authenticated, None if not."""
     if credentials is None:
         return None
     try:

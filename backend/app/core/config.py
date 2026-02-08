@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_jwt_secret: str = ""
 
+    # Stripe
+    stripe_secret_key: Optional[str] = None
+    stripe_pro_price_id: Optional[str] = None
+    stripe_enterprise_price_id: Optional[str] = None
+    stripe_webhook_secret: Optional[str] = None
+
     # App
     frontend_url: str = "http://localhost:3000"
 

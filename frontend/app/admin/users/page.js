@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 export default function AdminUsersPage() {
@@ -18,19 +18,12 @@ export default function AdminUsersPage() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
       const params = new URLSearchParams({ page, per_page: perPage });
       if (search) params.set("search", search);
       if (roleFilter) params.set("role", roleFilter);
       if (tierFilter) params.set("tier", tierFilter);
 
-      const res = await fetch(`${API_URL}/api/admin/users?${params}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
+      const res = await authFetch(`${API_URL}/api/admin/users?${params}`);
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users);

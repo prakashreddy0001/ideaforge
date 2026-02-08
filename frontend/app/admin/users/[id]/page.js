@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 export default function AdminUserDetailPage() {
@@ -22,14 +22,7 @@ export default function AdminUserDetailPage() {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const res = await fetch(`${API_URL}/api/admin/users/${id}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+        const res = await authFetch(`${API_URL}/api/admin/users/${id}`);
         if (res.ok) {
           const data = await res.json();
           setUserData(data);
@@ -51,17 +44,9 @@ export default function AdminUserDetailPage() {
     setSaving(true);
     setMessage("");
     try {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const res = await fetch(`${API_URL}/api/admin/users/${id}`, {
+      const res = await authFetch(`${API_URL}/api/admin/users/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: fullName,
           role,

@@ -7,7 +7,7 @@ import IdeaForm from "@/components/IdeaForm";
 import LoadingState from "@/components/LoadingState";
 import ResultsSection from "@/components/ResultsSection";
 import { useAuth } from "@/components/AuthProvider";
-import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 export default function GeneratePage() {
@@ -21,20 +21,9 @@ export default function GeneratePage() {
     setError("");
 
     try {
-      const headers = { "Content-Type": "application/json" };
-
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-      }
-
-      const res = await fetch(`${API_URL}/api/plan`, {
+      const res = await authFetch(`${API_URL}/api/plan`, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 

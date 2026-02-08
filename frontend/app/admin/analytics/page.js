@@ -15,7 +15,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { createClient } from "@/lib/supabase/client";
+import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
 
 const COLORS = {
@@ -34,15 +34,9 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     async function fetchAnalytics() {
       try {
-        const supabase = createClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const headers = { Authorization: `Bearer ${session.access_token}` };
-
         const [tiersRes, usageRes] = await Promise.all([
-          fetch(`${API_URL}/api/admin/analytics/tiers`, { headers }),
-          fetch(`${API_URL}/api/admin/analytics/usage?days=30`, { headers }),
+          authFetch(`${API_URL}/api/admin/analytics/tiers`),
+          authFetch(`${API_URL}/api/admin/analytics/usage?days=30`),
         ]);
 
         if (tiersRes.ok) {

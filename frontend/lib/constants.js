@@ -15,3 +15,12 @@ export const LOADING_MESSAGES = [
   "Generating prompts...",
   "Assembling docs...",
 ];
+
+export const DESIGN_LOADING_MESSAGES = [
+  "Analyzing your design...",
+  "Identifying layout structure...",
+  "Extracting colors and typography...",
+  "Detecting interactive elements...",
+  "Generating production-ready code...",
+  "Polishing and formatting...",
+];

@@ -52,7 +52,7 @@ export async function updateSession(request) {
   } = await supabase.auth.getUser();
 
   // Protected routes — redirect to login if no valid session
-  const protectedPaths = ["/dashboard", "/admin", "/generate", "/refine"];
+  const protectedPaths = ["/dashboard", "/admin", "/generate", "/refine", "/design-to-code"];
   const isProtected = protectedPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   );

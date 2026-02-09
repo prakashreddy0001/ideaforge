@@ -46,6 +46,16 @@ const icons = {
       }
     />
   ),
+  designToCode: (
+    <Icon
+      d={
+        <>
+          <polyline points="16 18 22 12 16 6" />
+          <polyline points="8 6 2 12 8 18" />
+        </>
+      }
+    />
+  ),
   pricing: (
     <Icon
       d={
@@ -117,6 +127,7 @@ const NAV_MAIN = [
   { href: "/", label: "Home", icon: icons.home },
   { href: "/generate", label: "Generate", icon: icons.generate },
   { href: "/refine", label: "Refine", icon: icons.refine },
+  { href: "/design-to-code", label: "Design to Code", icon: icons.designToCode },
   { href: "/pricing", label: "Pricing", icon: icons.pricing },
 ];
 

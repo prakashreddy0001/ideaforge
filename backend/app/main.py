@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as plan_router
 from app.api.auth_routes import router as auth_router
 from app.api.refine_routes import router as refine_router
+from app.api.design_routes import router as design_router
 from app.api.admin_routes import router as admin_router
 from app.api.stripe_routes import router as stripe_router
 from app.core.config import settings
@@ -41,6 +42,7 @@ app.add_middleware(
 app.include_router(plan_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(refine_router, prefix="/api")
+app.include_router(design_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(stripe_router, prefix="/api")
 

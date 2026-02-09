@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { authFetch } from "@/lib/auth-fetch";
 import { API_URL } from "@/lib/constants";
@@ -52,6 +53,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [supabase] = useState(() => createClient());
   const fetchingRef = useRef(false);
+  const router = useRouter();
 
   const fetchProfile = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -156,6 +158,8 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    router.push("/login");
+    router.refresh();
   };
 
   const refreshProfile = async () => {

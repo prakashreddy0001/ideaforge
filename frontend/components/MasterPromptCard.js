@@ -4,8 +4,10 @@ import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import GlassCard from "./GlassCard";
 import Accordion from "./Accordion";
+import OpenInToolButton from "./OpenInToolButton";
+import { TOOL_CONFIG, TOOL_ORDER } from "@/lib/tool-config";
 
-export default function MasterPromptCard({ prompt }) {
+export default function MasterPromptCard({ prompt, tool }) {
   const [copied, setCopied] = useState(false);
 
   const copy = useCallback(async () => {
@@ -17,6 +19,9 @@ export default function MasterPromptCard({ prompt }) {
       /* clipboard may be blocked */
     }
   }, [prompt]);
+
+  const toolsToShow =
+    tool && TOOL_CONFIG[tool] ? [tool] : TOOL_ORDER;
 
   return (
     <GlassCard glowColor="gold">
@@ -34,6 +39,18 @@ export default function MasterPromptCard({ prompt }) {
       >
         {copied ? "Copied to clipboard!" : "Copy master prompt"}
       </motion.button>
+
+      <div
+        className={`open-in-tool-section ${toolsToShow.length > 1 ? "open-in-tool-section--grid" : ""}`}
+      >
+        {toolsToShow.map((slug) => (
+          <OpenInToolButton
+            key={slug}
+            prompt={prompt}
+            toolConfig={TOOL_CONFIG[slug]}
+          />
+        ))}
+      </div>
 
       <Accordion title="View full prompt" defaultOpen={false}>
         <div className="prompt-block">

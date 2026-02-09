@@ -27,7 +27,7 @@ const item = {
   },
 };
 
-export default function ResultsSection({ result }) {
+export default function ResultsSection({ result, tool }) {
   const { masterPrompt, otherPrompts } = useMemo(() => {
     if (!result.prompts) return { masterPrompt: null, otherPrompts: {} };
     const { master_prompt, ...rest } = result.prompts;
@@ -61,7 +61,7 @@ export default function ResultsSection({ result }) {
 
       {masterPrompt && (
         <motion.div variants={item}>
-          <MasterPromptCard prompt={masterPrompt} />
+          <MasterPromptCard prompt={masterPrompt} tool={tool} />
         </motion.div>
       )}
 

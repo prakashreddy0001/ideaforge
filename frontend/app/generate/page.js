@@ -14,11 +14,13 @@ export default function GeneratePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [selectedTool, setSelectedTool] = useState(null);
   const { user, profile } = useAuth();
 
   const handleSubmit = async (formData) => {
     setLoading(true);
     setError("");
+    setSelectedTool(formData.tool || null);
 
     try {
       const res = await authFetch(`${API_URL}/api/plan`, {
@@ -71,7 +73,7 @@ export default function GeneratePage() {
 
         {loading && <LoadingState />}
 
-        {!loading && result && <ResultsSection result={result} />}
+        {!loading && result && <ResultsSection result={result} tool={selectedTool} />}
       </main>
     </>
   );

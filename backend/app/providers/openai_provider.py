@@ -29,6 +29,30 @@ class OpenAIProvider:
         )
         return response.choices[0].message.content or ""
 
+    def generate_with_vision(
+        self,
+        system_prompt: str,
+        user_content: list,
+        max_tokens: int = 8192,
+        temperature: float = 0.3,
+    ) -> str:
+        """Generate a response from an image + text prompt (Vision API).
+
+        Unlike generate(), this does NOT use response_format=json_object
+        because vision requests return raw code/text, not structured JSON.
+        """
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout=120.0,
+        )
+        return response.choices[0].message.content or ""
+
 
 _shared_provider: Optional[OpenAIProvider] = None
 

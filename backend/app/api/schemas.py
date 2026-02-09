@@ -35,3 +35,9 @@ class RefineResponse(BaseModel):
     analysis: str
     refined_prompt: str
     tips: Optional[List[str]] = None
+
+
+class DesignToCodeResponse(BaseModel):
+    code: str
+    language: str  # "jsx" or "html"
+    format_label: str  # e.g. "MUI (Material UI) + React"

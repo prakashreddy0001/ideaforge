@@ -4,14 +4,15 @@ Thin coordinator that delegates to specialised modules for feature detection,
 stack selection, prompt generation, documentation, and implementation planning.
 """
 
+import copy
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional, Set
 
 from app.api.schemas import IdeaRequest
-from app.core.config import settings
-from app.providers.openai_provider import OpenAIProvider
+from app.providers.openai_provider import OpenAIProvider, get_provider
 from app.services.doc_templates import build_doc_pack
 from app.services.feature_detection import detect_features
 from app.services.implementation_plan import build_implementation_plan
@@ -19,6 +20,8 @@ from app.services.prompt_templates import build_prompt_pack
 from app.services.stack_selection import choose_stack
 from app.services.system_prompts import build_system_prompt, build_user_prompt
 from app.services.tool_profiles import get_tool_profile
+
+_executor = ThreadPoolExecutor(max_workers=6)
 
 logger = logging.getLogger(__name__)
 
@@ -199,37 +202,49 @@ def generate_package(req: IdeaRequest) -> dict:
         raise ValueError("Idea is too short.")
 
     mode = getattr(req, "mode", "production") or "production"
+    provider = get_provider()
 
     # 1. Refine the idea via LLM (structured, clear description)
     try:
-        provider = OpenAIProvider(settings.openai_api_key, settings.openai_model)
         refined = _refine_idea(provider, idea, req.target_users, mode)
     except Exception:
-        logger.warning("Could not create provider for refinement — using raw idea")
-        provider = None
+        logger.warning("Idea refinement failed — using raw idea")
         refined = idea
 
     # 2. Analyse the refined idea (features detected from BOTH raw + refined)
     flags = detect_features(idea) | detect_features(refined)
 
-    # 2a. Load tool profile if user selected a specific AI tool
+    # 2a. Load tool profile — copy to avoid mutating the module-level singleton
     tool_profile = get_tool_profile(getattr(req, "tool", None))
+    if tool_profile:
+        tool_profile = copy.copy(tool_profile)
+
     if tool_profile and tool_profile.stack is not None:
         stack = tool_profile.stack
     else:
         stack = choose_stack(flags)
-        # For claude_code, fill in the dynamically-chosen stack
         if tool_profile and tool_profile.stack is None:
             tool_profile.stack = stack
 
-    # 2b. Extract domain-specific details (entities, endpoints, pages, workflows)
-    domain = None
+    # 2b + 4. Run domain analysis and LLM generation in PARALLEL
+    # (they both depend on `refined` but not on each other)
+    llm_max_tokens = 2048 if mode == "mvp" else 4096
+    sys_prompt = build_system_prompt(flags, stack, mode=mode)
+    usr_prompt = build_user_prompt(req, flags, stack, mode=mode)
+
+    domain_future = _executor.submit(
+        _analyze_domain, provider, refined, req.target_users, mode,
+    )
+    llm_future = _executor.submit(
+        provider.generate, sys_prompt, usr_prompt, llm_max_tokens,
+    )
+
+    # Wait for domain analysis (needed for procedural templates) — 45s timeout
     try:
-        if provider is None:
-            provider = OpenAIProvider(settings.openai_api_key, settings.openai_model)
-        domain = _analyze_domain(provider, refined, req.target_users, mode)
+        domain = domain_future.result(timeout=45)
     except Exception:
-        logger.warning("Could not run domain analysis — using generic templates")
+        logger.warning("Domain analysis failed — using generic templates")
+        domain = None
 
     # 3. Build procedural prompts, plan, docs using the REFINED idea + domain context
     procedural_prompts = build_prompt_pack(
@@ -239,15 +254,9 @@ def generate_package(req: IdeaRequest) -> dict:
     procedural_plan = build_implementation_plan(flags, stack, mode=mode, domain=domain, tool=tool_profile)
     procedural_docs = build_doc_pack(refined, flags, stack, req.target_users, mode=mode, domain=domain, tool=tool_profile)
 
-    # 4. Try LLM-enriched generation
-    llm_max_tokens = 2048 if mode == "mvp" else 4096
-
+    # Wait for LLM result and merge — 60s timeout
     try:
-        if provider is None:
-            provider = OpenAIProvider(settings.openai_api_key, settings.openai_model)
-        sys_prompt = build_system_prompt(flags, stack, mode=mode)
-        usr_prompt = build_user_prompt(req, flags, stack, mode=mode)
-        raw = provider.generate(sys_prompt, usr_prompt, max_tokens=llm_max_tokens)
+        raw = llm_future.result(timeout=60)
         payload = _validate_payload(_extract_json(raw))
 
         # Merge strategy:

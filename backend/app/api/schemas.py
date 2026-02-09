@@ -24,3 +24,14 @@ class IdeaResponse(BaseModel):
     detected_features: Optional[List[str]] = None
     estimated_complexity: Optional[str] = None
     prompt_count: Optional[int] = None
+
+
+class RefineRequest(BaseModel):
+    prompt: str = Field(..., min_length=5, max_length=4000)
+
+
+class RefineResponse(BaseModel):
+    prompt_type: str
+    analysis: str
+    refined_prompt: str
+    tips: Optional[List[str]] = None

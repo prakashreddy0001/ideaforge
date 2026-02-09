@@ -7,7 +7,7 @@ class OpenAIProvider:
     def __init__(self, api_key: Optional[str], model: str):
         if not api_key:
             raise ValueError("OPENAI_API_KEY is not set.")
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, timeout=60.0)
         self.model = model
 
     def generate(
@@ -28,3 +28,15 @@ class OpenAIProvider:
             response_format={"type": "json_object"},
         )
         return response.choices[0].message.content or ""
+
+
+_shared_provider: Optional[OpenAIProvider] = None
+
+
+def get_provider() -> OpenAIProvider:
+    """Return a shared OpenAIProvider singleton (reuses HTTP connection pool)."""
+    global _shared_provider
+    if _shared_provider is None:
+        from app.core.config import settings
+        _shared_provider = OpenAIProvider(settings.openai_api_key, settings.openai_model)
+    return _shared_provider
